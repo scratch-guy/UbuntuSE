@@ -1,0 +1,4 @@
+#!/bin/sh
+gcc kernel.c
+mv a.out compiledkernel
+chmod +x compiledkernel
