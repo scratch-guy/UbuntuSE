@@ -1,83 +1,113 @@
-#include <stdint.h>
+// syscall numbers
+#define SYS_write 1
+#define SYS_read 0
+#define SYS_fork 57
+#define SYS_execve 59
+#define SYS_wait4 61
 
-// print (sys_write)
-void print(const char *str) {
-    int len = 0;
-    while (str[len] != '\0') len++;
-    asm(
-        "movq $1, %%rax\n"
-        "movq $1, %%rdi\n"
+// write syscall (no libc)
+void print(const char *s) {
+    long len = 0;
+    while (s[len]) len++;
+
+    asm volatile(
         "movq %0, %%rsi\n"
         "movq %1, %%rdx\n"
-        "syscall\n"
+        "movq $1, %%rdi\n"
+        "movq $1, %%rax\n"
+        "syscall"
         :
-        : "r"(str), "r"((long)len)
+        : "r"(s), "r"(len)
         : "%rax", "%rdi", "%rsi", "%rdx"
     );
 }
 
-// read_input (sys_read)
-long read_input(char *buffer, long max_len) {
-    long bytes_read;
-    asm(
-        "movq $0, %%rax\n"
-        "movq $0, %%rdi\n"
+// read syscall (no libc)
+long read_input(char *buf, long max) {
+    long ret;
+    asm volatile(
         "movq %1, %%rsi\n"
         "movq %2, %%rdx\n"
+        "movq $0, %%rdi\n"
+        "movq $0, %%rax\n"
         "syscall\n"
         "movq %%rax, %0\n"
-        : "=r"(bytes_read)
-        : "r"(buffer), "r"(max_len)
+        : "=r"(ret)
+        : "r"(buf), "r"(max)
         : "%rax", "%rdi", "%rsi", "%rdx"
     );
-    return bytes_read;
+    return ret;
 }
 
-// system() replacement (fork + execve + waitpid)
-int system(const char *command) {
+// REAL system() — NO LIBC
+int system(const char *cmd) {
     long pid;
-    asm("movq $57, %%rax\nsyscall\nmovq %%rax, %0\n" : "=r"(pid) : : "%rax");
+
+    // fork()
+    asm volatile(
+        "movq $57, %%rax\n"
+        "syscall\n"
+        "movq %%rax, %0\n"
+        : "=r"(pid)
+        :
+        : "%rax"
+    );
 
     if (pid == 0) {
-        const char *argv[3] = {"/bin/sh", "-c", command};
-        const char *envp[1] = {0};
-        asm(
-            "movq $59, %%rax\n"
-            "movq %0, %%rdi\n"
-            "movq %1, %%rsi\n"
-            "movq %2, %%rdx\n"
-            "syscall\n"
+        // child: execve("/bin/sh", ["sh","-c",cmd], environ)
+
+        const char *sh = "/bin/sh";
+        const char *arg0 = "sh";
+        const char *arg1 = "-c";
+
+        const char *argv[] = { arg0, arg1, cmd, 0 };
+        const char *envp[] = { 0 };
+
+        asm volatile(
+            "movq $59, %%rax\n"      // execve
+            "movq %0, %%rdi\n"       // filename
+            "movq %1, %%rsi\n"       // argv
+            "movq %2, %%rdx\n"       // envp
+            "syscall"
             :
-            : "r"(argv[0]), "r"(argv), "r"(envp)
+            : "r"(sh), "r"(argv), "r"(envp)
             : "%rax", "%rdi", "%rsi", "%rdx"
         );
-        asm("movq $60, %%rax\nmovq $1, %%rdi\nsyscall\n" : : : "%rax", "%rdi");
-    } else {
-        long status;
-        asm(
-            "movq $61, %%rax\n"
-            "movq %1, %%rdi\n"
-            "movq $0, %%rsi\n"
-            "movq $0, %%rdx\n"
-            "syscall\n"
-            "movq %%rax, %0\n"
-            : "=r"(status)
-            : "r"(pid)
-            : "%rax", "%rdi", "%rsi", "%rdx"
+
+        // if exec fails:
+        asm volatile(
+            "movq $60, %%rax\n"
+            "movq $1, %%rdi\n"
+            "syscall"
         );
     }
-    return 0;
+
+    // parent: waitpid(pid)
+    int status;
+    asm volatile(
+        "movq %1, %%rdi\n"
+        "movq %2, %%rsi\n"
+        "movq $0, %%rdx\n"
+        "movq $61, %%rax\n"
+        "syscall\n"
+        : "=r"(status)
+        : "r"(pid), "r"(&status)
+        : "%rax", "%rdi", "%rsi", "%rdx"
+    );
+
+    return status;
 }
 
-// main shell loop
-int main(void) {
+int main() {
     char cmd[256];
+
     while (1) {
         print("root@UbuntuSE:/# ");
+
         long n = read_input(cmd, 255);
-        if (n > 0) {
-            cmd[n] = '\0';
-            system(cmd);
-        }
+        cmd[n] = '\0';
+
+        system(cmd);
     }
 }
+//>:(
