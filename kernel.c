@@ -49,8 +49,9 @@ long read(char *buffer, long max_len) {
 int main(void) {
     char cmd[256];
     while (1) {
-        print("root@UbuntuSE:/$ ")
+        print("root@UbuntuSE:/$ ");
         cmd = read();
+        print(cmd);
         //rest will be implimented soon
     }
 }
