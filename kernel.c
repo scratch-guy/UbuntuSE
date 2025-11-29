@@ -33,7 +33,7 @@ long read(char *buffer, long max_len) {
         "movq $0, %%rdi\n"       // file descriptor: stdin
         "movq %1, %%rsi\n"       // buffer to store input
         "movq %2, %%rdx\n"       // max number of bytes to read
-        "syscall\n"
+        "syscall"
         "movq %%rax, %0\n"       // store number of bytes read
         : "=r"(bytes_read)
         : "r"(buffer), "r"(max_len)
@@ -47,5 +47,10 @@ long read(char *buffer, long max_len) {
 //lets begin
 
 int main(void) {
-  //kernel will be implimented soon
+    char cmd[256];
+    while (1) {
+        print("root@UbuntuSE:/$ ")
+        cmd = read();
+        //rest will be implimented soon
+    }
 }
