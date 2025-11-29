@@ -76,8 +76,8 @@ int system(const char *cmd) {
 
         // if exec fails:
         asm volatile(
-            "movq $60, %%rax\n"
-            "movq $1, %%rdi\n"
+            "movq $60, %rax\n"
+            "movq $1, %rdi\n"
             "syscall"
         );
     }
